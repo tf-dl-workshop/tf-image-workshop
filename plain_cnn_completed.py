@@ -49,7 +49,7 @@ def cnn_model_fn(features, labels, mode, params):
     # Dense Layer
     pool_flat = tf.reshape(pool3, [-1, 32 * 32 * 64])
     dense = tf.layers.dense(inputs=pool_flat, units=512, activation=tf.nn.relu)
-    dropout = tf.layers.dropout(inputs=dense, rate=0.2, training=mode == learn.ModeKeys.TRAIN)
+    dropout = tf.layers.dropout(inputs=dense, rate=params['drop_out_rate'], training=mode == learn.ModeKeys.TRAIN)
 
     # Logits Layer
     logits = tf.layers.dense(inputs=dropout, units=5)
@@ -69,7 +69,7 @@ def cnn_model_fn(features, labels, mode, params):
             loss=loss,
             global_step=tf.contrib.framework.get_global_step(),
             optimizer=tf.train.AdamOptimizer,
-            learning_rate=0.0001,
+            learning_rate=params['learning_rate'],
             summaries=[
                 "learning_rate",
                 "loss",
@@ -104,16 +104,17 @@ def feature_engineering_fn(features, labels):
 
     # Example
     # Subtract off the mean and divide by the variance of the pixels.
-    features = resnetpreprocessing(features)
+    features = tf.map_fn(tf.image.per_image_standardization, features)
 
     return features, labels
 
 
 if __name__ == '__main__':
+    params = {'drop_out_rate': 0.2, 'learning_rate': 0.0001}
     cnn_classifier = learn.Estimator(
-        model_fn=cnn_model_fn, model_dir="_model/test_new2",
+        model_fn=cnn_model_fn, model_dir="_model/plain_cnn",
         config=RunConfig(save_summary_steps=10, keep_checkpoint_max=2, save_checkpoints_secs=30),
-        feature_engineering_fn=feature_engineering_fn)
+        feature_engineering_fn=feature_engineering_fn, params=params)
 
     # Configure the accuracy metric for evaluation
     metrics = {
@@ -122,18 +123,18 @@ if __name__ == '__main__':
                 metric_fn=tf.metrics.accuracy, prediction_key="classes"),
     }
 
-    train_input_fn = read_img(data_dir='_data/train', batch_size=32, shuffle=True)
-    monitor_input_fn = read_img(data_dir='_data/validate', batch_size=128, shuffle=False)
-    validate_input_fn = read_img(data_dir='_data/test', batch_size=617, shuffle=False)
+    train_input_fn = read_img(data_dir='data/train', batch_size=32, shuffle=True)
+    monitor_input_fn = read_img(data_dir='data/validate', batch_size=128, shuffle=True)
+    test_input_fn = read_img(data_dir='data/test', batch_size=512, shuffle=False)
 
     validation_monitor = monitors.ValidationMonitor(input_fn=monitor_input_fn,
                                                     eval_steps=10,
-                                                    every_n_steps=25,
+                                                    every_n_steps=50,
                                                     metrics=metrics,
                                                     name='validation')
 
-    cnn_classifier.fit(input_fn=train_input_fn, steps=1, monitors=[validation_monitor])
+    cnn_classifier.fit(input_fn=train_input_fn, steps=300, monitors=[validation_monitor])
 
     # Evaluate the _model and print results
-    eval_results = cnn_classifier.evaluate(input_fn=validate_input_fn, metrics=metrics, steps=1)
+    eval_results = cnn_classifier.evaluate(input_fn=test_input_fn, metrics=metrics, steps=1)
     np.save(os.getcwd() + '/embedding.npy', eval_results['dense'])

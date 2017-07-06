@@ -10,7 +10,7 @@ H = 72
 sess = tf.InteractiveSession()
 
 # Reads pfathes of images together with their labels
-image_list, label_list = read_labeled_image_list('_data/test')
+image_list, label_list = read_labeled_image_list('data/test')
 
 images = tf.convert_to_tensor(image_list, dtype=tf.string)
 labels = tf.convert_to_tensor(label_list, dtype=tf.int32)
@@ -56,4 +56,4 @@ classes_map = {0: 'env', 1: 'food', 2: 'front', 3: 'menu', 4: 'profile'}
 
 io.imsave(os.getcwd() + '/misc/sprite_valid.jpg', result)
 label_df = pd.DataFrame(list(map(lambda x: classes_map[x], label_val)), columns=['label'])
-label_df.to_csv(os.getcwd() + '/misc/label_valid.tsv', sep='\t', index=False)
+label_df.to_csv(os.getcwd() + '/misc/label_valid.tsv', sep='\t', index=False, header=False)
